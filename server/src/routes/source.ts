@@ -129,7 +129,11 @@ router.get('/get', async (req: Request, res: Response) => {
 
       try {
         // Initialize providers
-        const providers = await getProviders(config.proxyUrl);
+        const providers = await getProviderInstance(config.proxyUrl);
+
+        if (!providers) {
+          throw new Error('Provider-source not available');
+        }
 
         // Build media object for provider
         const media = {
