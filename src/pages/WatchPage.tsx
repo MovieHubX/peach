@@ -20,6 +20,10 @@ const WatchPage: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState(SOURCES[0].id);
   const [selectedSeason, setSelectedSeason] = useState(Number(season) || 1);
   const [isLandscape, setIsLandscape] = useState(false);
+  const [useCustomPlayer, setUseCustomPlayer] = useState(true);
+  const [streamData, setStreamData] = useState<any>(null);
+  const [isLoadingStream, setIsLoadingStream] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
 
   const { addToWatchHistory, updateWatchlistStatus } = useStore();
 
