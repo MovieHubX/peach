@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
+import { buildProviders, makeSimpleProxyFetcher, setM3U8ProxyUrl } from '../../provider-source/index.js';
 
 const router = Router();
 
@@ -9,7 +10,13 @@ interface StreamQuality {
   url: string;
 }
 
-interface StreamResponse {
+interface Caption {
+  language: string;
+  url: string;
+  default?: boolean;
+}
+
+export interface StreamResponse {
   success: boolean;
   data?: {
     title: string;
@@ -23,10 +30,87 @@ interface StreamResponse {
   fallbacks?: string[];
 }
 
-interface Caption {
-  language: string;
-  url: string;
-  default?: boolean;
+// Cache for provider instance
+let providerInstance: any = null;
+
+/**
+ * Initialize and cache the provider instance
+ */
+function getProviders(proxyUrl: string) {
+  if (!providerInstance) {
+    try {
+      const fetcher = makeSimpleProxyFetcher(proxyUrl);
+      setM3U8ProxyUrl(proxyUrl);
+      
+      providerInstance = buildProviders({
+        fetcher,
+        targets: {
+          SOURCES: true,
+          EMBEDS: true
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize providers:', error);
+      throw error;
+    }
+  }
+  return providerInstance;
+}
+
+/**
+ * Convert provider stream format to our format
+ */
+function convertStreamToQuality(stream: any): StreamQuality[] {
+  const qualities: StreamQuality[] = [];
+
+  try {
+    // Handle HLS streams
+    if (stream.type === 'hls') {
+      const url = stream.playlist;
+      if (url) {
+        qualities.push({
+          quality: stream.quality || 'auto',
+          url
+        });
+      }
+    }
+    // Handle file-based streams (MP4, WebM, etc.)
+    else if (stream.type === 'file') {
+      if (stream.file && stream.file.url) {
+        qualities.push({
+          quality: stream.quality || 'auto',
+          url: stream.file.url
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error converting stream:', error);
+  }
+
+  return qualities;
+}
+
+/**
+ * Extract captions from provider output
+ */
+function extractCaptions(output: any): Caption[] {
+  const captions: Caption[] = [];
+
+  try {
+    if (output.captions && Array.isArray(output.captions)) {
+      output.captions.forEach((caption: any, index: number) => {
+        captions.push({
+          language: caption.label || caption.language || `Subtitle ${index + 1}`,
+          url: caption.url || caption.src || '',
+          default: index === 0
+        });
+      });
+    }
+  } catch (error) {
+    console.error('Error extracting captions:', error);
+  }
+
+  return captions;
 }
 
 /**
@@ -41,6 +125,7 @@ interface Caption {
 router.get('/get', async (req: Request, res: Response) => {
   try {
     const { tmdbId, type, season, episode, quality = 'auto' } = req.query;
+    const config = (req as any).config;
 
     // Validation
     if (!tmdbId || !type) {
@@ -64,49 +149,119 @@ router.get('/get', async (req: Request, res: Response) => {
       });
     }
 
-    // TODO: Integrate with provider-source for real stream scraping
-    // For now, return mock data structure that frontend can use
-    const mockResponse: StreamResponse = {
-      success: true,
-      data: {
-        title: `${type === 'movie' ? 'Movie' : 'Episode'} ${tmdbId}`,
-        type: 'hls',
-        qualities: [
-          {
-            quality: '1080p',
-            url: `https://example.com/stream/1080p/${tmdbId}.m3u8`
-          },
-          {
-            quality: '720p',
-            url: `https://example.com/stream/720p/${tmdbId}.m3u8`
-          },
-          {
-            quality: '480p',
-            url: `https://example.com/stream/480p/${tmdbId}.m3u8`
-          }
-        ],
-        captions: [
-          {
-            language: 'English',
-            url: `https://example.com/captions/${tmdbId}_en.vtt`,
-            default: true
-          },
-          {
-            language: 'Spanish',
-            url: `https://example.com/captions/${tmdbId}_es.vtt`
-          }
-        ],
-        sourceProvider: 'placeholder',
-        duration: 7200
-      },
-      fallbacks: [
-        'videasy.net',
-        'vidlink.pro',
-        'vidsrc.pro'
-      ]
-    };
+    try {
+      // Initialize providers
+      const providers = getProviders(config.proxyUrl);
 
-    res.json(mockResponse);
+      // Build media object for provider
+      const media = {
+        type: type === 'movie' ? 'movie' : 'show',
+        tmdbId: Number(tmdbId),
+        ...(type === 'tv' && {
+          season: {
+            number: Number(season)
+          },
+          episode: {
+            number: Number(episode)
+          }
+        })
+      };
+
+      console.log(`[STREAM] Scraping ${type} ${tmdbId}${type === 'tv' ? ` S${season}E${episode}` : ''}`);
+
+      // Run providers to get streams
+      const results = await providers.runSourceScraper({
+        media,
+        events: {
+          onStart: (ev: any) => console.log(`[SCRAPER] Starting: ${ev.id}`),
+          onSuccess: (ev: any) => console.log(`[SCRAPER] Success: ${ev.id}`),
+          onError: (ev: any) => console.log(`[SCRAPER] Error: ${ev.id} - ${ev.error}`)
+        }
+      });
+
+      if (!results || !results.sources || results.sources.length === 0) {
+        console.warn(`[STREAM] No streams found for ${type} ${tmdbId}`);
+        return res.status(404).json({
+          success: false,
+          error: 'No streams found for this media'
+        });
+      }
+
+      // Get first available source
+      const source = results.sources[0];
+      
+      // Collect all qualities from all embedded streams
+      const allQualities: Map<string, StreamQuality> = new Map();
+      
+      if (source.embeds && Array.isArray(source.embeds)) {
+        for (const embed of source.embeds) {
+          if (embed.stream && Array.isArray(embed.stream)) {
+            for (const stream of embed.stream) {
+              const qualities = convertStreamToQuality(stream);
+              qualities.forEach(q => {
+                // Use quality as key to avoid duplicates
+                if (!allQualities.has(q.quality)) {
+                  allQualities.set(q.quality, q);
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // If no qualities found in embeds, try direct streams
+      if (allQualities.size === 0 && source.stream && Array.isArray(source.stream)) {
+        for (const stream of source.stream) {
+          const qualities = convertStreamToQuality(stream);
+          qualities.forEach(q => {
+            if (!allQualities.has(q.quality)) {
+              allQualities.set(q.quality, q);
+            }
+          });
+        }
+      }
+
+      // Extract captions
+      const captions = extractCaptions(source);
+
+      // Build response
+      const qualitiesArray = Array.from(allQualities.values());
+
+      if (qualitiesArray.length === 0) {
+        console.warn(`[STREAM] No playable streams found for ${type} ${tmdbId}`);
+        return res.status(404).json({
+          success: false,
+          error: 'No playable streams found'
+        });
+      }
+
+      const response: StreamResponse = {
+        success: true,
+        data: {
+          title: media.tmdbId.toString(),
+          type: qualitiesArray[0].url.includes('.m3u8') ? 'hls' : 'mp4',
+          qualities: qualitiesArray,
+          captions,
+          sourceProvider: source.name || 'unknown',
+          duration: undefined
+        },
+        fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
+      };
+
+      console.log(`[STREAM] Success: ${qualitiesArray.length} quality options found`);
+      res.json(response);
+
+    } catch (scraperError: any) {
+      console.error('[SCRAPER ERROR]', scraperError);
+      
+      // Return error but indicate fallbacks are available
+      return res.status(200).json({
+        success: false,
+        error: `Stream scraping failed: ${scraperError.message}`,
+        fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
+      });
+    }
+
   } catch (error: any) {
     console.error('Error fetching streams:', error);
     res.status(500).json({
