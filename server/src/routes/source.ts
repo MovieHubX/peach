@@ -54,12 +54,14 @@ let providerInstance: any = null;
 /**
  * Initialize and cache the provider instance
  */
-function getProviders(proxyUrl: string) {
+async function getProviders(proxyUrl: string) {
   if (!providerInstance) {
     try {
+      await loadProviderSource();
+
       const fetcher = makeSimpleProxyFetcher(proxyUrl);
       setM3U8ProxyUrl(proxyUrl);
-      
+
       providerInstance = buildProviders({
         fetcher,
         targets: {
