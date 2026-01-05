@@ -30,34 +30,6 @@ export interface StreamResponse {
   fallbacks?: string[];
 }
 
-// Cache for provider instance
-let providerInstance: any = null;
-
-/**
- * Initialize and cache the provider instance
- */
-async function getProviders(proxyUrl: string) {
-  if (!providerInstance) {
-    try {
-      await loadProviderSource();
-
-      const fetcher = makeSimpleProxyFetcher(proxyUrl);
-      setM3U8ProxyUrl(proxyUrl);
-
-      providerInstance = buildProviders({
-        fetcher,
-        targets: {
-          SOURCES: true,
-          EMBEDS: true
-        }
-      });
-    } catch (error) {
-      console.error('Failed to initialize providers:', error);
-      throw error;
-    }
-  }
-  return providerInstance;
-}
 
 /**
  * Convert provider stream format to our format
