@@ -152,13 +152,49 @@ const WatchPage: React.FC = () => {
   const isFirstEpisode = Number(season) === 1 && Number(episode) === 1;
   const isLastEpisode = Number(season) === seasons?.length && Number(episode) === currentSeasonData?.episodes.length;
 
+  const handlePlayerProgress = (progress: number, duration: number) => {
+    // This is called by CustomPlayer, progress tracking is handled by useWatchTracking hook
+  };
+
+  const handlePlayerEnded = () => {
+    // Auto-play next episode for TV shows
+    if (mediaType === 'tv' && episode && season) {
+      handleNext();
+    }
+  };
+
   return (
     <div className={cn(
       "fixed inset-0 flex flex-col bg-black",
       isLandscape && "flex-col-reverse"
     )}>
       <div className="relative flex-1">
-        <VideoPlayer videoUrl={videoUrl} />
+        {isLoadingStream ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+          </div>
+        ) : useCustomPlayer && streamData && videoUrl ? (
+          <CustomPlayer
+            streamUrl={videoUrl}
+            qualities={streamData.qualities}
+            captions={streamData.captions}
+            title={mediaType === 'movie' ? details?.title : details?.name}
+            poster={details?.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : undefined}
+            onProgress={handlePlayerProgress}
+            onEnded={handlePlayerEnded}
+          />
+        ) : (
+          // Fallback to embedded player
+          <div className="absolute inset-0">
+            <iframe
+              key={videoUrl}
+              src={videoUrl}
+              className="w-full h-full"
+              allowFullScreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            />
+          </div>
+        )}
       </div>
       <BottomBar
         onBack={() => navigate(backUrl)}
