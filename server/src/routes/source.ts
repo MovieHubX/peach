@@ -170,114 +170,120 @@ router.get('/get', async (req: Request, res: Response) => {
     }
 
     try {
-      // Initialize providers
-      const providers = await getProviders(config.proxyUrl);
+      // Try to use provider-source if available
+      let isUsingProviderSource = false;
 
-      // Build media object for provider
-      const media = {
-        type: type === 'movie' ? 'movie' : 'show',
-        tmdbId: Number(tmdbId),
-        ...(type === 'tv' && {
-          season: {
-            number: Number(season)
-          },
-          episode: {
-            number: Number(episode)
+      try {
+        // Initialize providers
+        const providers = await getProviders(config.proxyUrl);
+
+        // Build media object for provider
+        const media = {
+          type: type === 'movie' ? 'movie' : 'show',
+          tmdbId: Number(tmdbId),
+          ...(type === 'tv' && {
+            season: {
+              number: Number(season)
+            },
+            episode: {
+              number: Number(episode)
+            }
+          })
+        };
+
+        console.log(`[STREAM] Scraping ${type} ${tmdbId}${type === 'tv' ? ` S${season}E${episode}` : ''}`);
+
+        // Run providers to get streams
+        const results = await providers.runSourceScraper({
+          media,
+          timeout: 10000,
+          events: {
+            onStart: (ev: any) => console.log(`[SCRAPER] Starting: ${ev.id}`),
+            onSuccess: (ev: any) => console.log(`[SCRAPER] Success: ${ev.id}`),
+            onError: (ev: any) => console.log(`[SCRAPER] Error: ${ev.id} - ${ev.error}`)
           }
-        })
-      };
-
-      console.log(`[STREAM] Scraping ${type} ${tmdbId}${type === 'tv' ? ` S${season}E${episode}` : ''}`);
-
-      // Run providers to get streams
-      const results = await providers.runSourceScraper({
-        media,
-        events: {
-          onStart: (ev: any) => console.log(`[SCRAPER] Starting: ${ev.id}`),
-          onSuccess: (ev: any) => console.log(`[SCRAPER] Success: ${ev.id}`),
-          onError: (ev: any) => console.log(`[SCRAPER] Error: ${ev.id} - ${ev.error}`)
-        }
-      });
-
-      if (!results || !results.sources || results.sources.length === 0) {
-        console.warn(`[STREAM] No streams found for ${type} ${tmdbId}`);
-        return res.status(404).json({
-          success: false,
-          error: 'No streams found for this media'
         });
-      }
 
-      // Get first available source
-      const source = results.sources[0];
-      
-      // Collect all qualities from all embedded streams
-      const allQualities: Map<string, StreamQuality> = new Map();
-      
-      if (source.embeds && Array.isArray(source.embeds)) {
-        for (const embed of source.embeds) {
-          if (embed.stream && Array.isArray(embed.stream)) {
-            for (const stream of embed.stream) {
+        if (results && results.sources && results.sources.length > 0) {
+          isUsingProviderSource = true;
+
+          // Get first available source
+          const source = results.sources[0];
+
+          // Collect all qualities from all embedded streams
+          const allQualities: Map<string, StreamQuality> = new Map();
+
+          if (source.embeds && Array.isArray(source.embeds)) {
+            for (const embed of source.embeds) {
+              if (embed.stream && Array.isArray(embed.stream)) {
+                for (const stream of embed.stream) {
+                  const qualities = convertStreamToQuality(stream);
+                  qualities.forEach(q => {
+                    // Use quality as key to avoid duplicates
+                    if (!allQualities.has(q.quality)) {
+                      allQualities.set(q.quality, q);
+                    }
+                  });
+                }
+              }
+            }
+          }
+
+          // If no qualities found in embeds, try direct streams
+          if (allQualities.size === 0 && source.stream && Array.isArray(source.stream)) {
+            for (const stream of source.stream) {
               const qualities = convertStreamToQuality(stream);
               qualities.forEach(q => {
-                // Use quality as key to avoid duplicates
                 if (!allQualities.has(q.quality)) {
                   allQualities.set(q.quality, q);
                 }
               });
             }
           }
+
+          // Extract captions
+          const captions = extractCaptions(source);
+
+          // Build response
+          const qualitiesArray = Array.from(allQualities.values());
+
+          if (qualitiesArray.length > 0) {
+            const response: StreamResponse = {
+              success: true,
+              data: {
+                title: media.tmdbId.toString(),
+                type: qualitiesArray[0].url.includes('.m3u8') ? 'hls' : 'mp4',
+                qualities: qualitiesArray,
+                captions,
+                sourceProvider: source.name || 'unknown',
+                duration: undefined
+              },
+              fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
+            };
+
+            console.log(`[STREAM] Success: ${qualitiesArray.length} quality options found`);
+            return res.json(response);
+          }
         }
+      } catch (scraperError: any) {
+        console.warn(`[SCRAPER] Provider source unavailable or failed: ${scraperError.message}`);
       }
 
-      // If no qualities found in embeds, try direct streams
-      if (allQualities.size === 0 && source.stream && Array.isArray(source.stream)) {
-        for (const stream of source.stream) {
-          const qualities = convertStreamToQuality(stream);
-          qualities.forEach(q => {
-            if (!allQualities.has(q.quality)) {
-              allQualities.set(q.quality, q);
-            }
-          });
-        }
-      }
-
-      // Extract captions
-      const captions = extractCaptions(source);
-
-      // Build response
-      const qualitiesArray = Array.from(allQualities.values());
-
-      if (qualitiesArray.length === 0) {
-        console.warn(`[STREAM] No playable streams found for ${type} ${tmdbId}`);
-        return res.status(404).json({
+      // If provider-source is not available or failed, return fallback response
+      if (!isUsingProviderSource) {
+        console.log(`[STREAM] Falling back to embedded players for ${type} ${tmdbId}`);
+        return res.status(200).json({
           success: false,
-          error: 'No playable streams found'
+          error: 'Real stream scraping unavailable, using embedded players',
+          fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro', 'superembed']
         });
       }
 
-      const response: StreamResponse = {
-        success: true,
-        data: {
-          title: media.tmdbId.toString(),
-          type: qualitiesArray[0].url.includes('.m3u8') ? 'hls' : 'mp4',
-          qualities: qualitiesArray,
-          captions,
-          sourceProvider: source.name || 'unknown',
-          duration: undefined
-        },
-        fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
-      };
-
-      console.log(`[STREAM] Success: ${qualitiesArray.length} quality options found`);
-      res.json(response);
-
-    } catch (scraperError: any) {
-      console.error('[SCRAPER ERROR]', scraperError);
-      
-      // Return error but indicate fallbacks are available
-      return res.status(200).json({
+    } catch (error: any) {
+      console.error('[STREAM ERROR]', error);
+      res.status(500).json({
         success: false,
-        error: `Stream scraping failed: ${scraperError.message}`,
+        error: error.message || 'Failed to fetch streams',
         fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
       });
     }
