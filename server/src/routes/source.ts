@@ -1,6 +1,24 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
-import { buildProviders, makeSimpleProxyFetcher, setM3U8ProxyUrl } from '../../provider-source/index.js';
+
+let buildProviders: any;
+let makeSimpleProxyFetcher: any;
+let setM3U8ProxyUrl: any;
+
+// Lazy load provider-source to handle import issues
+async function loadProviderSource() {
+  if (!buildProviders) {
+    try {
+      const providerSource = await import('../../provider-source/index.js');
+      buildProviders = providerSource.buildProviders;
+      makeSimpleProxyFetcher = providerSource.makeSimpleProxyFetcher;
+      setM3U8ProxyUrl = providerSource.setM3U8ProxyUrl;
+    } catch (error) {
+      console.error('Failed to load provider-source:', error);
+      throw error;
+    }
+  }
+}
 
 const router = Router();
 
