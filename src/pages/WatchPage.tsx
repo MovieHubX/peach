@@ -42,6 +42,44 @@ const WatchPage: React.FC = () => {
     };
   }, []);
 
+  // Fetch streams from custom server
+  useEffect(() => {
+    const fetchStreams = async () => {
+      if (!id || !mediaType) return;
+
+      setIsLoadingStream(true);
+      setStreamError(null);
+
+      try {
+        const response = await streamClient.getStream(
+          Number(id),
+          mediaType as 'movie' | 'tv',
+          mediaType === 'tv' ? Number(season) : undefined,
+          mediaType === 'tv' ? Number(episode) : undefined,
+          'auto'
+        );
+
+        if (response.success && response.data) {
+          setStreamData(response.data);
+          setUseCustomPlayer(true);
+        } else {
+          // Fallback to old player if custom server fails
+          console.warn('Stream fetch failed, falling back to embedded players:', response.error);
+          setStreamError(response.error);
+          setUseCustomPlayer(false);
+        }
+      } catch (error) {
+        console.error('Failed to fetch streams:', error);
+        setStreamError('Failed to fetch streams. Using embedded player.');
+        setUseCustomPlayer(false);
+      } finally {
+        setIsLoadingStream(false);
+      }
+    };
+
+    fetchStreams();
+  }, [id, mediaType, season, episode]);
+
   const { data: details } = useMedia.useDetails(
     mediaType as 'movie' | 'tv',
     Number(id)
