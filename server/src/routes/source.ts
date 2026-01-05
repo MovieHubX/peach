@@ -171,7 +171,7 @@ router.get('/get', async (req: Request, res: Response) => {
 
     try {
       // Initialize providers
-      const providers = getProviders(config.proxyUrl);
+      const providers = await getProviders(config.proxyUrl);
 
       // Build media object for provider
       const media = {
