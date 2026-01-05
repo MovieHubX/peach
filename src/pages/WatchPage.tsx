@@ -108,12 +108,15 @@ const WatchPage: React.FC = () => {
     onUpdateWatchlist: updateWatchlistStatus,
   });
 
-  const videoUrl = mediaType === 'movie'
-    ? getMovieUrl(selectedSource, Number(id))
-    : getTvUrl(selectedSource, Number(id), Number(season), Number(episode));
+  // Use custom player if stream data is available, otherwise use embedded players
+  const videoUrl = !useCustomPlayer
+    ? (mediaType === 'movie'
+      ? getMovieUrl(selectedSource, Number(id))
+      : getTvUrl(selectedSource, Number(id), Number(season), Number(episode)))
+    : streamData?.qualities[0]?.url;
 
-  if (!videoUrl) {
-    return <div>Invalid media type or missing parameters</div>;
+  if (!videoUrl && !isLoadingStream) {
+    return <div className="w-full h-full flex items-center justify-center bg-black text-white">Invalid media type or missing parameters</div>;
   }
 
   const backUrl = mediaType === 'movie' ? `/movie/${id}` : `/tv/${id}`;
