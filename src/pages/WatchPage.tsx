@@ -7,8 +7,9 @@ import { useStore } from '../store/useStore';
 import { useQueries } from '@tanstack/react-query';
 import { mediaService } from '../api/services/media';
 import { cn } from '../lib/utils';
-import VideoPlayer from '../components/watch/VideoPlayer';
+import CustomPlayer from '../components/watch/CustomPlayer';
 import BottomBar from '../components/watch/BottomBar';
+import { streamClient } from '../api/streamClient';
 
 const WatchPage: React.FC = () => {
   const { mediaType, id } = useParams();
