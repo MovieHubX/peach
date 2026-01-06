@@ -19,6 +19,6 @@
     },
     "noImplicitAny": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "../provider-source/!(dev-cli|__test__)/**/*.ts"],
+  "exclude": ["node_modules", "dist", "../provider-source/dev-cli/**/*", "../provider-source/__test__/**/*"]
 }
