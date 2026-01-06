@@ -65,6 +65,23 @@ function convertStreamToQuality(stream: any): StreamQuality[] {
 }
 
 /**
+ * Build headers object from stream if needed
+ */
+function getStreamHeaders(stream: any): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  if (stream.headers && typeof stream.headers === 'object') {
+    Object.entries(stream.headers).forEach(([key, value]) => {
+      if (typeof value === 'string') {
+        headers[key] = value;
+      }
+    });
+  }
+
+  return headers;
+}
+
+/**
  * Extract captions from provider output
  */
 function extractCaptions(output: any): Caption[] {
