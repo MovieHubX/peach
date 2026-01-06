@@ -199,13 +199,23 @@ router.get('/get', async (req: Request, res: Response) => {
 
         let result;
         try {
-          result = await providers.runAll({
-            media
-          });
+          // Create a promise that resolves after a timeout
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Provider scraping timeout after 30 seconds')), 30000)
+          );
+
+          // Race between runAll and timeout
+          result = await Promise.race([
+            providers.runAll({
+              media
+            }),
+            timeoutPromise
+          ]);
 
           console.log(`[SCRAPER] runAll completed:`, result ? `Found stream from ${result.sourceId}` : 'No stream found');
         } catch (err: any) {
-          console.error(`[SCRAPER] runAll threw error:`, err.message, err.stack);
+          console.error(`[SCRAPER] runAll error:`, err.message);
+          if (err.stack) console.error(`[SCRAPER] Stack:`, err.stack);
           result = null;
         }
 
