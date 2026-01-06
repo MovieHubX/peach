@@ -15,6 +15,7 @@ interface YouMightLikeProps {
 
 const YouMightLike: React.FC<YouMightLikeProps> = ({ items }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const { addToWatchlist, removeFromWatchlist, getWatchlistItem } = useStore();
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
