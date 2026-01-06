@@ -3,7 +3,8 @@
  * Handles lazy loading and error handling for provider initialization
  */
 
-import { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } from '../../provider-source/index';
+// @ts-ignore - provider-source is external TypeScript source
+import { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } from '../../provider-source/entrypoint/declare.js';
 
 let providersInstance: any = null;
 let loadPromise: Promise<any> | null = null;
