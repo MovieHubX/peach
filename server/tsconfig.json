@@ -18,6 +18,6 @@
       "@/*": ["../provider-source/*"]
     }
   },
-  "include": ["src/**/*", "../provider-source/!(dev-cli|__test__)/**/*"],
+  "include": ["src/**/*", "../provider-source/**/*.ts", "!../provider-source/__test__/**/*", "!../provider-source/dev-cli/**/*"],
   "exclude": ["node_modules", "dist"]
 }
