@@ -195,15 +195,19 @@ router.get('/get', async (req: Request, res: Response) => {
         console.log(`[STREAM] Scraping ${type} ${tmdbId}${type === 'tv' ? ` S${season}E${episode}` : ''} - ${media.title || 'Unknown'}`);
 
         // Run all providers to get the first available stream
-        const result = await providers.runAll({
-          media,
-          events: {
-            onStart: (ev: any) => console.log(`[SCRAPER] Starting: ${ev.sourceId}`),
-            onProviderError: (ev: any) => console.log(`[SCRAPER] Provider error: ${ev.sourceId} - ${ev.error}`),
-            onSource: (ev: any) => console.log(`[SCRAPER] Found source from: ${ev.sourceId}`),
-            onEmbed: (ev: any) => console.log(`[SCRAPER] Found embed from: ${ev.embedId}`),
-          }
-        });
+        console.log(`[SCRAPER] Starting runAll with media:`, JSON.stringify(media));
+
+        let result;
+        try {
+          result = await providers.runAll({
+            media
+          });
+
+          console.log(`[SCRAPER] runAll completed:`, result ? `Found stream from ${result.sourceId}` : 'No stream found');
+        } catch (err: any) {
+          console.error(`[SCRAPER] runAll threw error:`, err.message, err.stack);
+          result = null;
+        }
 
         if (result && result.stream) {
           isUsingProviderSource = true;
