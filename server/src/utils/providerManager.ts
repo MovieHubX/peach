@@ -1,7 +1,9 @@
 /**
- * Manages provider-source integration
+ * Manages @movie-web/providers integration
  * Handles lazy loading and error handling for provider initialization
  */
+
+import { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } from '@movie-web/providers';
 
 let providersInstance: any = null;
 let loadPromise: Promise<any> | null = null;
@@ -22,10 +24,6 @@ export async function getProviderInstance(proxyUrl: string) {
   loadPromise = (async () => {
     try {
       console.log('[PROVIDER-SOURCE] Initializing provider instance...');
-
-      // Dynamically import provider-source modules through wrapper
-      // @ts-ignore - provider-source is external TypeScript source
-      const { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } = await import('./providerWrapper.js');
 
       setM3U8ProxyUrl(proxyUrl);
 
