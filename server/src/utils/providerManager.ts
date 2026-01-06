@@ -23,8 +23,8 @@ export async function getProviderInstance(proxyUrl: string) {
     try {
       console.log('[PROVIDER-SOURCE] Initializing provider instance...');
 
-      // Dynamically import provider-source modules
-      const { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } = await import('../../provider-source/index.js');
+      // Dynamically import provider-source modules through wrapper
+      const { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } = await import('./providerWrapper.js');
 
       setM3U8ProxyUrl(proxyUrl);
 
