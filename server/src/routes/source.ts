@@ -323,6 +323,59 @@ router.get('/providers', (req: Request, res: Response) => {
 });
 
 /**
+ * Debug endpoint to test provider initialization and list available sources
+ */
+router.get('/debug', async (req: Request, res: Response) => {
+  try {
+    const config = (req as any).config;
+
+    const providers = await getProviderInstance(config.proxyUrl);
+
+    if (!providers) {
+      return res.json({
+        success: false,
+        error: 'Failed to initialize providers',
+        status: 'Provider initialization failed'
+      });
+    }
+
+    // Try to list available sources
+    let sources: any[] = [];
+    let embeds: any[] = [];
+
+    try {
+      sources = providers.listSources?.() || [];
+      console.log('[DEBUG] Available sources:', sources);
+    } catch (e: any) {
+      console.log('[DEBUG] Could not list sources:', e.message);
+    }
+
+    try {
+      embeds = providers.listEmbeds?.() || [];
+      console.log('[DEBUG] Available embeds:', embeds);
+    } catch (e: any) {
+      console.log('[DEBUG] Could not list embeds:', e.message);
+    }
+
+    res.json({
+      success: true,
+      status: 'Provider initialized successfully',
+      sourcesCount: sources.length,
+      embedsCount: embeds.length,
+      sources: sources.slice(0, 5), // Return first 5 sources
+      embeds: embeds.slice(0, 5)    // Return first 5 embeds
+    });
+  } catch (error: any) {
+    console.error('[DEBUG] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      status: 'Debug endpoint error'
+    });
+  }
+});
+
+/**
  * Proxy endpoint for proxying requests through the external proxy
  * This helps bypass CORS and geo-blocking
  */
