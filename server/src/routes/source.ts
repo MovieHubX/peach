@@ -198,6 +198,9 @@ router.get('/get', async (req: Request, res: Response) => {
         console.log(`[SCRAPER] Starting runAll with media:`, JSON.stringify(media));
 
         let result;
+        let sourceErrors: any[] = [];
+        let sourceAttempts: any[] = [];
+
         try {
           // Create a promise that resolves after a timeout
           const timeoutPromise = new Promise((_, reject) =>
@@ -207,12 +210,30 @@ router.get('/get', async (req: Request, res: Response) => {
           // Race between runAll and timeout
           result = await Promise.race([
             providers.runAll({
-              media
+              media,
+              events: {
+                onSourceError: (ev: any) => {
+                  console.error(`[SCRAPER EVENT] Source ${ev.sourceId} error:`, ev.error);
+                  sourceErrors.push({ source: ev.sourceId, error: ev.error });
+                },
+                onSourceNotFound: (ev: any) => {
+                  console.log(`[SCRAPER EVENT] Source ${ev.sourceId} not found`);
+                  sourceAttempts.push({ source: ev.sourceId, status: 'not-found' });
+                },
+                onEmbedError: (ev: any) => {
+                  console.error(`[SCRAPER EVENT] Embed ${ev.embedId} error:`, ev.error);
+                },
+                onEmbedNotFound: (ev: any) => {
+                  console.log(`[SCRAPER EVENT] Embed ${ev.embedId} not found`);
+                }
+              }
             }),
             timeoutPromise
           ]);
 
           console.log(`[SCRAPER] runAll completed:`, result ? `Found stream from ${result.sourceId}` : 'No stream found');
+          console.log(`[SCRAPER] Source attempts:`, sourceAttempts);
+          console.log(`[SCRAPER] Source errors:`, sourceErrors);
         } catch (err: any) {
           console.error(`[SCRAPER] runAll error:`, err.message);
           if (err.stack) console.error(`[SCRAPER] Stack:`, err.stack);
