@@ -128,6 +128,25 @@ router.get('/get', async (req: Request, res: Response) => {
       let isUsingProviderSource = false;
 
       try {
+        // Fetch metadata from TMDB to get title and release year
+        let tmdbData: any = {};
+        try {
+          const tmdbEndpoint = type === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`;
+          const tmdbResponse = await axios.get(
+            `${config.tmdbBaseUrl}${tmdbEndpoint}`,
+            {
+              params: {
+                api_key: config.tmdbApiKey
+              },
+              timeout: 5000
+            }
+          );
+          tmdbData = tmdbResponse.data;
+          console.log(`[TMDB] Fetched metadata for ${type} ${tmdbId}`);
+        } catch (tmdbError: any) {
+          console.warn(`[TMDB] Could not fetch metadata: ${tmdbError.message}`);
+        }
+
         // Initialize providers
         const providers = await getProviderInstance(config.proxyUrl);
 
@@ -135,10 +154,16 @@ router.get('/get', async (req: Request, res: Response) => {
           throw new Error('Provider-source not available');
         }
 
-        // Build media object for provider
+        // Build media object for provider with TMDB metadata
         const media = {
           type: type === 'movie' ? 'movie' : 'show',
           tmdbId: Number(tmdbId),
+          title: tmdbData.title || tmdbData.name || undefined,
+          releaseYear: tmdbData.release_date
+            ? new Date(tmdbData.release_date).getFullYear()
+            : tmdbData.first_air_date
+            ? new Date(tmdbData.first_air_date).getFullYear()
+            : undefined,
           ...(type === 'tv' && {
             season: {
               number: Number(season)
@@ -149,7 +174,7 @@ router.get('/get', async (req: Request, res: Response) => {
           })
         };
 
-        console.log(`[STREAM] Scraping ${type} ${tmdbId}${type === 'tv' ? ` S${season}E${episode}` : ''}`);
+        console.log(`[STREAM] Scraping ${type} ${tmdbId}${type === 'tv' ? ` S${season}E${episode}` : ''} - ${media.title || 'Unknown'}`);
 
         // Run all providers to get the first available stream
         const result = await providers.runAll({
