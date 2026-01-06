@@ -5,14 +5,19 @@
     "lib": ["ES2020"],
     "moduleResolution": "bundler",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "allowJs": true
+    "allowJs": true,
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../provider-source/*"]
+    }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../provider-source/**/*"],
   "exclude": ["node_modules", "dist"]
 }
