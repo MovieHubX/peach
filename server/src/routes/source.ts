@@ -282,6 +282,165 @@ router.get('/get', async (req: Request, res: Response) => {
             console.log(`[STREAM] Success: ${qualitiesArray.length} quality options found from ${result.sourceId}`);
             return res.json(response);
           }
+        } else {
+          console.log(`[SCRAPER] runAll returned no stream, will try individual sources`);
+
+          // Try to scrape individual sources as fallback
+          const sources = ['8stream', 'ee3', 'streambox', 'soapertv', 'whvxMirrors'];
+
+          for (const sourceId of sources) {
+            try {
+              console.log(`[SCRAPER] Trying source: ${sourceId}`);
+
+              const sourceResult = await providers.runSourceScraper({
+                id: sourceId,
+                media
+              });
+
+              console.log(`[SCRAPER] Source ${sourceId} result:`, sourceResult ? 'Found embeds/stream' : 'Nothing found');
+
+              // Check if source found a direct stream
+              if (sourceResult && sourceResult.stream) {
+                console.log(`[SCRAPER] Found direct stream from ${sourceId}`);
+
+                const captions: Caption[] = [];
+                if (sourceResult.stream.captions && Array.isArray(sourceResult.stream.captions)) {
+                  sourceResult.stream.captions.forEach((caption: any, index: number) => {
+                    captions.push({
+                      language: caption.language || `Subtitle ${index + 1}`,
+                      url: caption.url || '',
+                      default: index === 0
+                    });
+                  });
+                }
+
+                const qualitiesArray: StreamQuality[] = [];
+                let streamType: 'hls' | 'mp4' = 'mp4';
+
+                if (sourceResult.stream.type === 'hls') {
+                  streamType = 'hls';
+                  if (sourceResult.stream.playlist) {
+                    qualitiesArray.push({
+                      quality: 'auto',
+                      url: sourceResult.stream.playlist
+                    });
+                  }
+                } else if (sourceResult.stream.type === 'file') {
+                  streamType = 'mp4';
+                  if (sourceResult.stream.qualities) {
+                    Object.entries(sourceResult.stream.qualities).forEach(([quality, fileData]: [string, any]) => {
+                      if (fileData && fileData.url) {
+                        qualitiesArray.push({
+                          quality: quality || 'auto',
+                          url: fileData.url
+                        });
+                      }
+                    });
+                  }
+                }
+
+                if (qualitiesArray.length > 0) {
+                  const headers = getStreamHeaders(sourceResult.stream);
+                  const response: StreamResponse = {
+                    success: true,
+                    data: {
+                      title: media.tmdbId.toString(),
+                      type: streamType,
+                      qualities: qualitiesArray,
+                      captions,
+                      sourceProvider: sourceId,
+                      duration: undefined,
+                      ...(Object.keys(headers).length > 0 && { headers })
+                    },
+                    fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
+                  };
+
+                  console.log(`[STREAM] Success from fallback: ${qualitiesArray.length} quality options found from ${sourceId}`);
+                  return res.json(response);
+                }
+              }
+
+              // Check for embeds
+              if (sourceResult && sourceResult.embeds && sourceResult.embeds.length > 0) {
+                console.log(`[SCRAPER] Source ${sourceId} found ${sourceResult.embeds.length} embed(s), will try them`);
+
+                // Try the first embed
+                const embed = sourceResult.embeds[0];
+                try {
+                  const embedResult = await providers.runEmbedScraper({
+                    id: embed.embedId,
+                    url: embed.url
+                  });
+
+                  if (embedResult && embedResult.stream) {
+                    console.log(`[SCRAPER] Found stream from embed ${embed.embedId}`);
+
+                    const captions: Caption[] = [];
+                    if (embedResult.stream.captions && Array.isArray(embedResult.stream.captions)) {
+                      embedResult.stream.captions.forEach((caption: any, index: number) => {
+                        captions.push({
+                          language: caption.language || `Subtitle ${index + 1}`,
+                          url: caption.url || '',
+                          default: index === 0
+                        });
+                      });
+                    }
+
+                    const qualitiesArray: StreamQuality[] = [];
+                    let streamType: 'hls' | 'mp4' = 'mp4';
+
+                    if (embedResult.stream.type === 'hls') {
+                      streamType = 'hls';
+                      if (embedResult.stream.playlist) {
+                        qualitiesArray.push({
+                          quality: 'auto',
+                          url: embedResult.stream.playlist
+                        });
+                      }
+                    } else if (embedResult.stream.type === 'file') {
+                      streamType = 'mp4';
+                      if (embedResult.stream.qualities) {
+                        Object.entries(embedResult.stream.qualities).forEach(([quality, fileData]: [string, any]) => {
+                          if (fileData && fileData.url) {
+                            qualitiesArray.push({
+                              quality: quality || 'auto',
+                              url: fileData.url
+                            });
+                          }
+                        });
+                      }
+                    }
+
+                    if (qualitiesArray.length > 0) {
+                      const headers = getStreamHeaders(embedResult.stream);
+                      const response: StreamResponse = {
+                        success: true,
+                        data: {
+                          title: media.tmdbId.toString(),
+                          type: streamType,
+                          qualities: qualitiesArray,
+                          captions,
+                          sourceProvider: `${sourceId} → ${embed.embedId}`,
+                          duration: undefined,
+                          ...(Object.keys(headers).length > 0 && { headers })
+                        },
+                        fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
+                      };
+
+                      console.log(`[STREAM] Success from embed: ${qualitiesArray.length} quality options found`);
+                      return res.json(response);
+                    }
+                  }
+                } catch (embedError: any) {
+                  console.warn(`[SCRAPER] Embed ${embed.embedId} scraping failed: ${embedError.message}`);
+                  continue;
+                }
+              }
+            } catch (sourceError: any) {
+              console.warn(`[SCRAPER] Source ${sourceId} failed: ${sourceError.message}`);
+              continue;
+            }
+          }
         }
       } catch (scraperError: any) {
         console.warn(`[SCRAPER] Provider source unavailable or failed: ${scraperError.message}`);
