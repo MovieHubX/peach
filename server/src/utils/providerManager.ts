@@ -3,7 +3,8 @@
  * Handles lazy loading and error handling for provider initialization
  */
 
-import { buildProviders, makeSimpleProxyFetcher, makeStandardFetcher, targets } from '@movie-web/providers';
+import { makeSimpleProxyFetcher, makeStandardFetcher, targets } from '@movie-web/providers';
+import * as providersLib from '@movie-web/providers';
 
 let providersInstance: any = null;
 let loadPromise: Promise<any> | null = null;
@@ -34,15 +35,29 @@ export async function getProviderInstance(proxyUrl: string) {
       const proxyFetcher = makeSimpleProxyFetcher(proxyUrl, fetch);
       console.log('[PROVIDER-SOURCE] Proxy fetcher created');
 
-      // Initialize providers using buildProviders with explicit built-in providers
-      console.log('[PROVIDER-SOURCE] Building providers with built-in providers...');
+      // Try to use buildProviders if available, otherwise use makeProviders
+      console.log('[PROVIDER-SOURCE] Checking available initialization methods...');
 
-      providersInstance = buildProviders()
-        .setTarget(targets.NATIVE)
-        .setFetcher(standardFetcher)
-        .setProxiedFetcher(proxyFetcher)
-        .addBuiltinProviders()
-        .build();
+      if (typeof providersLib.buildProviders === 'function') {
+        console.log('[PROVIDER-SOURCE] Using buildProviders with addBuiltinProviders...');
+
+        providersInstance = (providersLib.buildProviders as any)()
+          .setTarget(targets.NATIVE)
+          .setFetcher(standardFetcher)
+          .setProxiedFetcher(proxyFetcher)
+          .addBuiltinProviders()
+          .build();
+      } else {
+        console.log('[PROVIDER-SOURCE] buildProviders not available, using makeProviders...');
+
+        // Fallback: use makeProviders
+        const { makeProviders } = providersLib;
+        providersInstance = (makeProviders as any)({
+          fetcher: standardFetcher,
+          proxiedFetcher: proxyFetcher,
+          target: targets.NATIVE,
+        });
+      }
 
       console.log('[PROVIDER-SOURCE] Provider instance created');
 
@@ -60,8 +75,13 @@ export async function getProviderInstance(proxyUrl: string) {
       console.log('[PROVIDER-SOURCE] Provider instance initialized successfully');
       return providersInstance;
     } catch (error: any) {
-      console.error('[PROVIDER-SOURCE] Failed to initialize:', error.message);
+      console.error('[PROVIDER-SOURCE] CRITICAL INITIALIZATION ERROR:', error.message);
       console.error('[PROVIDER-SOURCE] Stack:', error.stack);
+
+      // Log all available exports to help debug
+      console.log('[PROVIDER-SOURCE] Available exports from @movie-web/providers:');
+      console.log('[PROVIDER-SOURCE]', Object.keys(providersLib).slice(0, 20));
+
       return null;
     }
   })();
