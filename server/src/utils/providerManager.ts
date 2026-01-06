@@ -1,38 +1,12 @@
 /**
- * Manages provider-source integration
+ * Manages @movie-web/providers integration
  * Handles lazy loading and error handling for provider initialization
  */
 
+import { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, targets } from '@movie-web/providers';
+
 let providersInstance: any = null;
 let loadPromise: Promise<any> | null = null;
-
-interface ProviderImports {
-  buildProviders: any;
-  makeSimpleProxyFetcher: any;
-  setM3U8ProxyUrl: any;
-}
-
-/**
- * Load provider-source dynamically
- * Handles ESM imports and path resolution
- */
-async function loadProviderSource(): Promise<ProviderImports | null> {
-  try {
-    console.log('[PROVIDER-SOURCE] Attempting to load provider-source library...');
-    
-    // Try the relative import path
-    const providerModule = await import('../../provider-source/index.js');
-    
-    return {
-      buildProviders: providerModule.buildProviders,
-      makeSimpleProxyFetcher: providerModule.makeSimpleProxyFetcher,
-      setM3U8ProxyUrl: providerModule.setM3U8ProxyUrl
-    };
-  } catch (error: any) {
-    console.warn('[PROVIDER-SOURCE] Failed to load provider-source:', error.message);
-    return null;
-  }
-}
 
 /**
  * Initialize and cache provider instance
@@ -49,26 +23,19 @@ export async function getProviderInstance(proxyUrl: string) {
 
   loadPromise = (async () => {
     try {
-      const imports = await loadProviderSource();
-      
-      if (!imports) {
-        console.warn('[PROVIDER-SOURCE] Provider-source imports not available');
-        return null;
-      }
+      console.log('[PROVIDER-SOURCE] Initializing provider instance...');
 
-      const { buildProviders, makeSimpleProxyFetcher, setM3U8ProxyUrl } = imports;
+      // Create a standard fetcher for normal requests
+      const standardFetcher = makeStandardFetcher(fetch);
 
-      console.log('[PROVIDER-SOURCE] Building provider instance...');
-      
-      const fetcher = makeSimpleProxyFetcher(proxyUrl);
-      setM3U8ProxyUrl(proxyUrl);
+      // Create a proxy fetcher for proxied requests
+      const proxyFetcher = makeSimpleProxyFetcher(proxyUrl, fetch);
 
-      providersInstance = buildProviders({
-        fetcher,
-        targets: {
-          SOURCES: true,
-          EMBEDS: true
-        }
+      // Initialize providers with both fetchers
+      providersInstance = makeProviders({
+        fetcher: standardFetcher,
+        proxiedFetcher: proxyFetcher,
+        target: targets.NATIVE,
       });
 
       console.log('[PROVIDER-SOURCE] Provider instance initialized successfully');
