@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Star, Play, Bookmark, Film, Tv } from 'lucide-react';
 import { Movie, TVShow } from '../../api/types';
 import { getImageUrl } from '../../api/config';
