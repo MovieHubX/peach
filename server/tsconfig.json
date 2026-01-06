@@ -17,8 +17,7 @@
     "paths": {
       "@/*": ["../provider-source/*"]
     },
-    "noImplicitAny": false,
-    "suppressImplicitAnyIndexErrors": true
+    "noImplicitAny": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"],
