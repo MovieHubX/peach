@@ -521,6 +521,117 @@ router.get('/providers', (req: Request, res: Response) => {
 });
 
 /**
+ * Test endpoint to scrape a specific source directly
+ * Query params:
+ * - tmdbId: TMDB ID (required)
+ * - type: 'movie' or 'tv' (required)
+ * - sourceId: Source ID to test (optional, defaults to '8stream')
+ * - season: Season number (required for TV)
+ * - episode: Episode number (required for TV)
+ */
+router.get('/test-source', async (req: Request, res: Response) => {
+  try {
+    const { tmdbId, type, sourceId = '8stream', season, episode } = req.query;
+    const config = (req as any).config;
+
+    if (!tmdbId || !type) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing tmdbId and type'
+      });
+    }
+
+    const providers = await getProviderInstance(config.proxyUrl);
+    if (!providers) {
+      return res.json({
+        success: false,
+        error: 'Failed to initialize provider'
+      });
+    }
+
+    // Fetch TMDB metadata
+    let tmdbData: any = {};
+    try {
+      const tmdbEndpoint = type === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`;
+      const tmdbResponse = await axios.get(
+        `${config.tmdbBaseUrl}${tmdbEndpoint}`,
+        {
+          params: {
+            api_key: config.tmdbApiKey
+          },
+          timeout: 5000
+        }
+      );
+      tmdbData = tmdbResponse.data;
+    } catch (e: any) {
+      console.log(`[TEST] Could not fetch TMDB data: ${e.message}`);
+    }
+
+    // Build media object
+    const media = {
+      type: type === 'movie' ? 'movie' : 'show',
+      tmdbId: String(tmdbId),
+      title: tmdbData.title || tmdbData.name,
+      releaseYear: tmdbData.release_date
+        ? new Date(tmdbData.release_date).getFullYear()
+        : tmdbData.first_air_date
+        ? new Date(tmdbData.first_air_date).getFullYear()
+        : undefined,
+      ...(type === 'tv' && {
+        season: { number: Number(season) },
+        episode: { number: Number(episode) }
+      })
+    };
+
+    console.log(`[TEST] Testing source ${sourceId} with media:`, JSON.stringify(media));
+
+    // Test the specific source
+    try {
+      const result = await providers.runSourceScraper({
+        id: String(sourceId),
+        media
+      });
+
+      console.log(`[TEST] Result from ${sourceId}:`, result);
+
+      return res.json({
+        success: true,
+        source: sourceId,
+        media,
+        result: {
+          hasStream: !!result?.stream,
+          embedCount: result?.embeds?.length || 0,
+          stream: result?.stream ? {
+            type: result.stream.type,
+            hasPlaylist: !!result.stream.playlist,
+            hasQualities: !!result.stream.qualities,
+            captionCount: result.stream.captions?.length || 0
+          } : null
+        }
+      });
+    } catch (err: any) {
+      console.error(`[TEST] Error testing source ${sourceId}:`, err.message);
+      console.error(`[TEST] Error name:`, err.name);
+      console.error(`[TEST] Stack:`, err.stack);
+
+      return res.json({
+        success: false,
+        source: sourceId,
+        media,
+        error: err.message,
+        errorName: err.name
+      });
+    }
+  } catch (error: any) {
+    console.error('[TEST] Endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * Debug endpoint to test provider initialization and list available sources
  */
 router.get('/debug', async (req: Request, res: Response) => {
