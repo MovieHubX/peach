@@ -24,6 +24,7 @@ export async function getProviderInstance(proxyUrl: string) {
       console.log('[PROVIDER-SOURCE] Initializing provider instance...');
 
       // Dynamically import provider-source modules through wrapper
+      // @ts-ignore - provider-source is external TypeScript source
       const { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } = await import('./providerWrapper.js');
 
       setM3U8ProxyUrl(proxyUrl);
