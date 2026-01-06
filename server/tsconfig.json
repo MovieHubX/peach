@@ -18,6 +18,6 @@
     },
     "noImplicitAny": false
   },
-  "include": ["src/**/*", "../provider-source/!(dev-cli|__test__)/**/*.ts"],
-  "exclude": ["node_modules", "dist", "../provider-source/dev-cli/**/*", "../provider-source/__test__/**/*"]
+  "include": ["src/**/*", "../provider-source/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
