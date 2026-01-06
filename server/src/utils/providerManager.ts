@@ -3,9 +3,6 @@
  * Handles lazy loading and error handling for provider initialization
  */
 
-// @ts-ignore - provider-source is external TypeScript source
-import { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } from '../../provider-source/entrypoint/declare.js';
-
 let providersInstance: any = null;
 let loadPromise: Promise<any> | null = null;
 
@@ -25,6 +22,9 @@ export async function getProviderInstance(proxyUrl: string) {
   loadPromise = (async () => {
     try {
       console.log('[PROVIDER-SOURCE] Initializing provider instance...');
+
+      // Dynamically import provider-source modules
+      const { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } = await import('../../provider-source/index.js');
 
       setM3U8ProxyUrl(proxyUrl);
 
