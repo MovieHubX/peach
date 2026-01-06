@@ -437,7 +437,13 @@ router.get('/get', async (req: Request, res: Response) => {
                 }
               }
             } catch (sourceError: any) {
-              console.warn(`[SCRAPER] Source ${sourceId} failed: ${sourceError.message}`);
+              // NotFoundError is normal when a source doesn't have the media
+              if (sourceError.name === 'NotFoundError' || sourceError.message?.includes('not found')) {
+                console.log(`[SCRAPER] Source ${sourceId} doesn't have this media (NotFoundError)`);
+              } else {
+                console.error(`[SCRAPER] Source ${sourceId} error:`, sourceError.message);
+                console.error(`[SCRAPER] Error type:`, sourceError.name);
+              }
               continue;
             }
           }
