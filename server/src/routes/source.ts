@@ -443,7 +443,9 @@ router.get('/get', async (req: Request, res: Response) => {
           }
         }
       } catch (scraperError: any) {
-        console.warn(`[SCRAPER] Provider source unavailable or failed: ${scraperError.message}`);
+        console.error(`[SCRAPER] CRITICAL ERROR in provider initialization or scraping:`, scraperError.message);
+        console.error(`[SCRAPER] Error stack:`, scraperError.stack);
+        console.error(`[SCRAPER] Error type:`, scraperError.constructor.name);
       }
 
       // If provider-source is not available or failed, return fallback response
