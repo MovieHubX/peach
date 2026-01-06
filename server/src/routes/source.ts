@@ -585,8 +585,20 @@ router.get('/test-source', async (req: Request, res: Response) => {
 
     console.log(`[TEST] Testing source ${sourceId} with media:`, JSON.stringify(media));
 
+    // Diagnose provider state
+    console.log(`[TEST] Provider methods available:`, Object.getOwnPropertyNames(Object.getPrototypeOf(providers)).slice(0, 20));
+
+    try {
+      const sources = providers.listSources?.();
+      console.log(`[TEST] Available sources count:`, sources?.length || 'N/A');
+    } catch (e) {
+      console.log(`[TEST] Could not list sources`);
+    }
+
     // Test the specific source
     try {
+      console.log(`[TEST] Attempting runSourceScraper...`);
+
       const result = await providers.runSourceScraper({
         id: String(sourceId),
         media
@@ -619,7 +631,12 @@ router.get('/test-source', async (req: Request, res: Response) => {
         source: sourceId,
         media,
         error: err.message,
-        errorName: err.name
+        errorName: err.name,
+        diagnostic: {
+          providerType: typeof providers,
+          hasRunSourceScraper: typeof providers.runSourceScraper === 'function',
+          hasListSources: typeof providers.listSources === 'function'
+        }
       });
     }
   } catch (error: any) {
