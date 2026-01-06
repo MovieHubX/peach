@@ -249,6 +249,8 @@ router.get('/get', async (req: Request, res: Response) => {
 
           // If we have qualities, return success response
           if (qualitiesArray.length > 0) {
+            const headers = getStreamHeaders(result.stream);
+
             const response: StreamResponse = {
               success: true,
               data: {
@@ -257,7 +259,8 @@ router.get('/get', async (req: Request, res: Response) => {
                 qualities: qualitiesArray,
                 captions,
                 sourceProvider: result.sourceId || 'unknown',
-                duration: undefined
+                duration: undefined,
+                ...(Object.keys(headers).length > 0 && { headers })
               },
               fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
             };
