@@ -4,9 +4,8 @@
     "module": "ES2020",
     "lib": ["ES2020"],
     "types": ["node"],
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "outDir": "./dist",
-    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -16,8 +15,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["../provider-source/*"]
-    }
+    },
+    "noImplicitAny": false
   },
-  "include": ["src/**/*", "../provider-source/**/*.ts"],
-  "exclude": ["node_modules", "dist", "../provider-source/__test__/**/*", "../provider-source/dev-cli/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
