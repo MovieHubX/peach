@@ -151,75 +151,75 @@ router.get('/get', async (req: Request, res: Response) => {
 
         console.log(`[STREAM] Scraping ${type} ${tmdbId}${type === 'tv' ? ` S${season}E${episode}` : ''}`);
 
-        // Run providers to get streams
-        const results = await providers.runSourceScraper({
+        // Run all providers to get the first available stream
+        const result = await providers.runAll({
           media,
-          timeout: 10000,
           events: {
-            onStart: (ev: any) => console.log(`[SCRAPER] Starting: ${ev.id}`),
-            onSuccess: (ev: any) => console.log(`[SCRAPER] Success: ${ev.id}`),
-            onError: (ev: any) => console.log(`[SCRAPER] Error: ${ev.id} - ${ev.error}`)
+            onStart: (ev: any) => console.log(`[SCRAPER] Starting: ${ev.sourceId}`),
+            onProviderError: (ev: any) => console.log(`[SCRAPER] Provider error: ${ev.sourceId} - ${ev.error}`),
+            onSource: (ev: any) => console.log(`[SCRAPER] Found source from: ${ev.sourceId}`),
+            onEmbed: (ev: any) => console.log(`[SCRAPER] Found embed from: ${ev.embedId}`),
           }
         });
 
-        if (results && results.sources && results.sources.length > 0) {
+        if (result && result.stream) {
           isUsingProviderSource = true;
 
-          // Get first available source
-          const source = results.sources[0];
-
-          // Collect all qualities from all embedded streams
-          const allQualities: Map<string, StreamQuality> = new Map();
-
-          if (source.embeds && Array.isArray(source.embeds)) {
-            for (const embed of source.embeds) {
-              if (embed.stream && Array.isArray(embed.stream)) {
-                for (const stream of embed.stream) {
-                  const qualities = convertStreamToQuality(stream);
-                  qualities.forEach(q => {
-                    // Use quality as key to avoid duplicates
-                    if (!allQualities.has(q.quality)) {
-                      allQualities.set(q.quality, q);
-                    }
-                  });
-                }
-              }
-            }
+          // Extract captions from the stream
+          const captions: Caption[] = [];
+          if (result.stream.captions && Array.isArray(result.stream.captions)) {
+            result.stream.captions.forEach((caption: any, index: number) => {
+              captions.push({
+                language: caption.language || `Subtitle ${index + 1}`,
+                url: caption.url || '',
+                default: index === 0
+              });
+            });
           }
 
-          // If no qualities found in embeds, try direct streams
-          if (allQualities.size === 0 && source.stream && Array.isArray(source.stream)) {
-            for (const stream of source.stream) {
-              const qualities = convertStreamToQuality(stream);
-              qualities.forEach(q => {
-                if (!allQualities.has(q.quality)) {
-                  allQualities.set(q.quality, q);
+          // Build qualities array based on stream type
+          const qualitiesArray: StreamQuality[] = [];
+          let streamType: 'hls' | 'mp4' = 'mp4';
+
+          if (result.stream.type === 'hls') {
+            streamType = 'hls';
+            if (result.stream.playlist) {
+              qualitiesArray.push({
+                quality: 'auto',
+                url: result.stream.playlist
+              });
+            }
+          } else if (result.stream.type === 'file') {
+            streamType = 'mp4';
+            // Extract qualities from file stream
+            if (result.stream.qualities) {
+              Object.entries(result.stream.qualities).forEach(([quality, fileData]: [string, any]) => {
+                if (fileData && fileData.url) {
+                  qualitiesArray.push({
+                    quality: quality || 'auto',
+                    url: fileData.url
+                  });
                 }
               });
             }
           }
 
-          // Extract captions
-          const captions = extractCaptions(source);
-
-          // Build response
-          const qualitiesArray = Array.from(allQualities.values());
-
+          // If we have qualities, return success response
           if (qualitiesArray.length > 0) {
             const response: StreamResponse = {
               success: true,
               data: {
                 title: media.tmdbId.toString(),
-                type: qualitiesArray[0].url.includes('.m3u8') ? 'hls' : 'mp4',
+                type: streamType,
                 qualities: qualitiesArray,
                 captions,
-                sourceProvider: source.name || 'unknown',
+                sourceProvider: result.sourceId || 'unknown',
                 duration: undefined
               },
               fallbacks: ['videasy.net', 'vidlink.pro', 'vidsrc.pro']
             };
 
-            console.log(`[STREAM] Success: ${qualitiesArray.length} quality options found`);
+            console.log(`[STREAM] Success: ${qualitiesArray.length} quality options found from ${result.sourceId}`);
             return res.json(response);
           }
         }
