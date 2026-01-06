@@ -175,7 +175,7 @@ router.get('/get', async (req: Request, res: Response) => {
         // Build media object for provider with TMDB metadata
         const media = {
           type: type === 'movie' ? 'movie' : 'show',
-          tmdbId: Number(tmdbId),
+          tmdbId: String(tmdbId), // tmdbId must be a string
           title: tmdbData.title || tmdbData.name || undefined,
           releaseYear: tmdbData.release_date
             ? new Date(tmdbData.release_date).getFullYear()
