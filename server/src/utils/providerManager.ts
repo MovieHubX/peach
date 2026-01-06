@@ -3,7 +3,7 @@
  * Handles lazy loading and error handling for provider initialization
  */
 
-import { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, setM3U8ProxyUrl, targets } from '@movie-web/providers';
+import { makeProviders, makeSimpleProxyFetcher, makeStandardFetcher, targets } from '@movie-web/providers';
 
 let providersInstance: any = null;
 let loadPromise: Promise<any> | null = null;
@@ -24,8 +24,6 @@ export async function getProviderInstance(proxyUrl: string) {
   loadPromise = (async () => {
     try {
       console.log('[PROVIDER-SOURCE] Initializing provider instance...');
-
-      setM3U8ProxyUrl(proxyUrl);
 
       // Create a standard fetcher for normal requests
       const standardFetcher = makeStandardFetcher(fetch);
