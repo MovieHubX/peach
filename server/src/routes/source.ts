@@ -25,6 +25,7 @@ export interface StreamResponse {
     captions: Caption[];
     sourceProvider: string;
     duration?: number;
+    headers?: Record<string, string>;
   };
   error?: string;
   fallbacks?: string[];
